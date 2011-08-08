@@ -255,7 +255,7 @@ Logs messages as error.
 =head2 _log
 
 A method to override. If your logger does not provide this, it will cause the
-application to die.
+application to raise an exception.
 
 =head2 _should
 

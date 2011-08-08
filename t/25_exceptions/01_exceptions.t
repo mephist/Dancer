@@ -86,6 +86,21 @@ set error_template => "error.tt";
 }
 
 {
+    # test overloading
+    eval { raise(E_GENERIC | E_HALTED, "this is a message") };
+    my $exception = $@;
+    ok($exception =~ /^this is a message$/, 'exception regexp overloading');
+    ok($exception == (E_GENERIC | E_HALTED), 'exception numeric equality overloading');
+    ok($exception + 1 == (E_GENERIC | E_HALTED) + 1, 'exception numeric addition overloading');
+    ok($exception * 2 == (E_GENERIC | E_HALTED) * 2, 'exception numeric multiplication overloading');
+    ok($exception eq 'this is a message', 'exception string equality overloading');
+    is($exception, 'this is a message', 'exception string equality overloading 2');
+    ok($exception . " foo" eq 'this is a message foo', 'exception concatenation overloading');
+    ok($exception & E_GENERIC, 'exception OR overloading');
+    ok($exception | E_REQUEST == (E_GENERIC | E_HALTED | E_REQUEST), 'exception AND overloading');
+}
+
+{
     # register new custom exception
     register_custom_exception('E_MY_EXCEPTION');
     ok(E_MY_EXCEPTION(), 'exception registered and imported');
@@ -111,11 +126,11 @@ set error_template => "error.tt";
 {
     # list of exceptions
     is_deeply( [sort { $a cmp $b } list_exceptions()],
-               [ qw(E_GENERIC E_HALTED E_HOOK E_INTERNAL E_MY_EXCEPTION E_MY_EXCEPTION2 E_REQUEST ) ],
+               [ qw(E_GENERIC E_HALTED E_HOOK E_INTERNAL E_MY_EXCEPTION E_MY_EXCEPTION2 E_REQUEST E_SESSION ) ],
                'listing all exceptions',
              );
     is_deeply( [sort { $a cmp $b } list_exceptions(type => 'internal')],
-               [ qw(E_GENERIC E_HALTED E_HOOK E_INTERNAL E_REQUEST) ],
+               [ qw(E_GENERIC E_HALTED E_HOOK E_INTERNAL E_REQUEST E_SESSION) ],
                'listing internal exceptions',
              );
     is_deeply([sort { $a cmp $b } list_exceptions(type => 'custom')],

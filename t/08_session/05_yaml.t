@@ -6,6 +6,7 @@ use Dancer ':syntax';
 use Dancer::ModuleLoader;
 use Dancer::Logger;
 use File::Path qw(mkpath rmtree);
+use Dancer::Exception qw(:all);
 
 # use t::lib::TestUtils;
 # use t::lib::EasyMocker;
@@ -15,7 +16,7 @@ BEGIN {
         unless Dancer::ModuleLoader->load('YAML');
     plan skip_all => "File::Temp 0.22 required"
         unless Dancer::ModuleLoader->load( 'File::Temp', '0.22' );
-    plan tests => 12;
+    plan tests => 14;
     use_ok 'Dancer::Session::YAML'
 }
 
@@ -56,10 +57,13 @@ rmtree($session_dir);
 eval { $session = Dancer::Session::YAML->create() };
 my $error = $@;
 like(
-    $@,
+    $error,
     qr{Can't open '.*\.*yml':.*},
     'session dir was not recreated',
 );
+
+ok(is_dancer_exception($error), 'session error is a Dancer exception');
+ok($error & E_SESSION, 'session error is a session Dancer exception');
 
 Dancer::Session::YAML->reset();
 $session = Dancer::Session::YAML->create();

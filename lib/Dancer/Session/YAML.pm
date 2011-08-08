@@ -10,6 +10,7 @@ use Dancer::Logger;
 use Dancer::ModuleLoader;
 use Dancer::Config 'setting';
 use Dancer::FileUtils qw(path set_file_mode);
+use Dancer::Exception qw(raise :exceptions);
 
 # static
 
@@ -63,10 +64,10 @@ sub retrieve {
 
     return unless -f $session_file;
 
-    open my $fh, '+<', $session_file or die "Can't open '$session_file': $!\n";
-    flock $fh, LOCK_EX or die "Can't lock file '$session_file': $!\n";
+    open my $fh, '+<', $session_file or raise E_SESSION, "Can't open '$session_file': $!\n";
+    flock $fh, LOCK_EX or raise E_SESSION, "Can't lock file '$session_file': $!\n";
     my $content = YAML::LoadFile($fh);
-    close $fh or die "Can't close '$session_file': $!\n";
+    close $fh or raise E_SESSION, "Can't close '$session_file': $!\n";
 
     return $content;
 }
@@ -90,11 +91,11 @@ sub flush {
     my $self         = shift;
     my $session_file = yaml_file( $self->id );
 
-    open my $fh, '>', $session_file or die "Can't open '$session_file': $!\n";
-    flock $fh, LOCK_EX or die "Can't lock file '$session_file': $!\n";
+    open my $fh, '>', $session_file or raise E_SESSION, "Can't open '$session_file': $!\n";
+    flock $fh, LOCK_EX or raise E_SESSION, "Can't lock file '$session_file': $!\n";
     set_file_mode($fh);
     print {$fh} YAML::Dump($self);
-    close $fh or die "Can't close '$session_file': $!\n";
+    close $fh or raise E_SESSION, "Can't close '$session_file': $!\n";
 
     return $self;
 }

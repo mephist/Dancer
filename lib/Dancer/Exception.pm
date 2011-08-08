@@ -6,7 +6,7 @@ use Carp;
 
 use base qw(Exporter);
 
-my @exceptions = qw(E_GENERIC E_INTERNAL E_HALTED E_HOOK E_REQUEST);
+my @exceptions = qw(E_GENERIC E_INTERNAL E_HALTED E_HOOK E_REQUEST E_SESSION);
 our @EXPORT_OK = (@exceptions, qw(raise list_exceptions is_dancer_exception register_custom_exception));
 our %value_to_custom_name;
 our %custom_name_to_value;
@@ -17,6 +17,62 @@ our %EXPORT_TAGS = ( exceptions => [ @exceptions],
                      all => \@EXPORT_OK,
                    );
 
+use overload '""' => sub { $_[0]->message  };
+use overload '0+' => sub { $_[0]->value };
+
+use overload '+' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->value + $_[1]->value;
+    return $_[0]->value + $_[1];
+};
+
+use overload '-' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->value - $_[1]->value;
+    return $_[0]->value - $_[1];
+};
+
+use overload '*' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->value * $_[1]->value;
+    return $_[0]->value * $_[1];
+};
+
+use overload '/' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->value / $_[1]->value;
+    return $_[0]->value / $_[1];
+};
+
+use overload '.' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->message . $_[1]->message;
+    return $_[0]->message . $_[1];
+};
+
+use overload '<=>' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->value <=> $_[1]->value;
+    return $_[0]->value <=> $_[1];
+};
+
+use overload 'cmp' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->message cmp $_[1]->message;
+    return $_[0]->message cmp $_[1];
+};
+
+use overload '&' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->message & $_[1]->value;
+    return $_[0]->value & $_[1];
+};
+
+use overload '|' => sub {
+    ref $_[1] eq __PACKAGE__
+      and return $_[0]->message | $_[1]->value;
+    return $_[0]->value | $_[1];
+};
 
 =head1 SYNOPSIS
 
@@ -36,13 +92,26 @@ our %EXPORT_TAGS = ( exceptions => [ @exceptions],
   my $exception = $@;
   if ( is_dancer_exception($exception) ) {
     if ($exception->value == ( E_HALTED | E_FOO ) ) {
-        # it's a halt or foo exception...
+        # it's a halt and foo exception...
         my $message = $exception->message;
         # ...
     }
   } elsif ($exception) {
     # it's not a dancer exception (don't use $@ as it may have been reset)
   }
+
+  # exceptions also support various overloading (see OVERLOADING below)
+  eval { raise E_GENERIC, "plop"}
+  my $e = $@;
+  if ($e eq "plop") {
+    # will be executed
+  }
+  if ($e & E_GENERIC) {
+    # will be executed
+  }
+
+=head1 REAL LIFE EXAMPLE
+
 
 =head1 DESCRIPTION
 
@@ -244,6 +313,17 @@ sub message {
     return $_[0]->[1];
 }
 
+=head1 OVERLOADING
+
+Dancer exceptions overloads several operators, returning the exception values
+or message depending on the case.
+
+Basically, Dancer exceptions stringify to their message, and numerify to their
+value.
+
+Here is the list of overloaded operators : C<"">, C<0+>, C<+>, C<->, C<*>,
+C</>, C<.>, C<< <=> >>, C<cmp>, C<&>, C<|>.
+
 =head1 INTERNAL EXCEPTIONS
 
 =head2 E_GENERIC
@@ -288,6 +368,14 @@ Internal exception, related to a Dancer request.
 =cut
 
 sub E_REQUEST () { 2**4 }
+
+=head2 E_SESSION
+
+Internal exception, related to Dancer sessions.
+
+=cut
+
+sub E_SESSION () { 2**5 }
 
 =head1 CUSTOM EXCEPTIONS
 
