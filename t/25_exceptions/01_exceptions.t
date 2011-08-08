@@ -35,6 +35,18 @@ set error_template => "error.tt";
 }
 
 {
+    # raise in route, with message
+    get '/raise_in_route2' => sub {
+        raise E_GENERIC, "Oops I broke my leg!";
+    };
+    route_exists [ GET => '/raise_in_route2' ];
+    response_content_like( [ GET => '/raise_in_route2' ], qr|MESSAGE: <h2>runtime error</h2><pre class="error">Oops I broke my leg!| );
+    my $e = E_GENERIC;
+    response_content_like( [ GET => '/raise_in_route2' ], qr|EXCEPTION: $e| );
+    response_status_is( [ GET => '/raise_in_route2' ], 500 => "We get a 500 status" );
+}
+
+{
     # die in hook
     my $flag = 0;
     hook after_template_render => sub {
@@ -67,7 +79,7 @@ set error_template => "error.tt";
     $flag = 0;
     response_content_like( [ GET => '/raise_in_hook' ], qr|MESSAGE: <h2>runtime error</h2>| );
     $flag = 0;
-    my $e = E_GENERIC;
+    my $e = E_GENERIC | E_HOOK;
     response_content_like( [ GET => '/raise_in_hook' ], qr|EXCEPTION: $e| );
     $flag = 0;
     response_status_is( [ GET => '/raise_in_hook' ], 500 => "We get a 500 status" );
@@ -99,11 +111,11 @@ set error_template => "error.tt";
 {
     # list of exceptions
     is_deeply( [sort { $a cmp $b } list_exceptions()],
-               [ qw(E_GENERIC E_HALTED E_MY_EXCEPTION E_MY_EXCEPTION2) ],
+               [ qw(E_GENERIC E_HALTED E_HOOK E_INTERNAL E_MY_EXCEPTION E_MY_EXCEPTION2 E_REQUEST ) ],
                'listing all exceptions',
              );
     is_deeply( [sort { $a cmp $b } list_exceptions(type => 'internal')],
-               [ qw(E_GENERIC E_HALTED) ],
+               [ qw(E_GENERIC E_HALTED E_HOOK E_INTERNAL E_REQUEST) ],
                'listing internal exceptions',
              );
     is_deeply([sort { $a cmp $b } list_exceptions(type => 'custom')],

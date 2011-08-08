@@ -14,6 +14,8 @@ use HTTP::Body;
 use URI;
 use URI::Escape;
 
+use Dancer::Exception qw(raise :exceptions);
+
 my @http_env_keys = (
     'user_agent',      'accept_language', 'accept_charset',
     'accept_encoding', 'keep_alive', 'connection',      'accept',
@@ -164,7 +166,7 @@ sub forward {
                                     $to_data->{params} || {});
 
     if (exists($to_data->{options}{method})) {
-        die unless _valid_method($to_data->{options}{method});
+        raise E_REQUEST unless _valid_method($to_data->{options}{method});
         $new_request->{method} = uc $to_data->{options}{method};
     }
 
@@ -187,7 +189,7 @@ sub _valid_method {
 sub _merge_params {
     my ($params, $to_add) = @_;
 
-    die unless ref $to_add eq "HASH";
+    raise E_INTERNAL unless ref $to_add eq "HASH";
     for my $key (keys %$to_add) {
         $params->{$key} = $to_add->{$key};
     }

@@ -6,7 +6,7 @@ use Carp;
 
 use base qw(Exporter);
 
-my @exceptions = qw(E_HALTED E_GENERIC);
+my @exceptions = qw(E_GENERIC E_INTERNAL E_HALTED E_HOOK E_REQUEST);
 our @EXPORT_OK = (@exceptions, qw(raise list_exceptions is_dancer_exception register_custom_exception));
 our %value_to_custom_name;
 our %custom_name_to_value;
@@ -25,29 +25,38 @@ our %EXPORT_TAGS = ( exceptions => [ @exceptions],
   # raise an exception
   raise E_HALTED;
 
+  # raise an exception with a message
+  raise E_GENERIC, "Oops, I broke my leg";
+
   # get a list of possible exceptions
   my @exception_names = list_exceptions;
 
   # catch an exception
   eval { ... };
-  if ( my $value = is_dancer_exception(my $exception = $@) ) {
-    if ($value == ( E_HALTED | E_FOO ) ) {
+  my $exception = $@;
+  if ( is_dancer_exception($exception) ) {
+    if ($exception->value == ( E_HALTED | E_FOO ) ) {
         # it's a halt or foo exception...
+        my $message = $exception->message;
+        # ...
     }
   } elsif ($exception) {
-    # do something with $exception (don't use $@ as it may have been reset)
+    # it's not a dancer exception (don't use $@ as it may have been reset)
   }
 
 =head1 DESCRIPTION
 
-This is a lighweight exceptions module. Yes, it's not Object Oriented, that's
-on purpose, to keep it light and fast. Thus, you can use ref() instead of
-->isa(), and exceptions have no method to call on. Simply dereference them to
-get their value
+This is a lighweight exceptions module. The primary goal is to keep it light
+and fast.
 
-An exception is a blessed reference on an integer. This integer is always a
-power of two, so that you can test its value using the C<|> operator. A Dancer
-exception is always blessed as C<'Dancer::Exception'>.
+An exception is a blessed reference on ArrayRef, which contains an integer and
+optionally a message. The integer is always a power of two, so that you can
+test its value using the C<|> operator. A Dancer exception is always blessed as
+C<'Dancer::Exception'>.
+
+An exception is technically an object, but there is no inheritance mechanism.
+
+The only methods you can call on an exception are C<value()> and C<message()>.
 
 =head1 EXPORTS
 
@@ -74,20 +83,35 @@ to be able to use this module, you should use it with these options :
   # loads everything
   use Dancer::Exception qw(:all);
 
+  # you can combine stuff. Here we only import raise and the exceptions
+  use Dancer::Exception qw(raise :exceptions);
+
 =head1 FUNCTIONS
 
 =head2 raise
 
   raise E_HALTED;
 
-Used to raise an exception. Takes in argument an integer (must be a power of
+Used to raise an exception. Takes in arguments:
+
+=over
+
+=item *
+
+The exception value. It's an integer (must be a power of
 2). You should give it an existing Dancer exception.
+
+=item *
+
+An optional argument, the exception message. It should be a string.
+
+=back
 
 =cut
 
-# yes we use __CLASS__, it's not OO and inheritance proof, but if you'd pay
+# yes we use __PACKAGE__, it's not OO and inheritance proof, but if you'd pay
 # attention, you'd have noticed that this module is *not* a class :)
-sub raise { die bless \ do { my $e = $_[0] }, __PACKAGE__ }
+sub raise { die bless [ @_ ], __PACKAGE__ }
 
 =head2 list_exceptions
 
@@ -112,7 +136,7 @@ sub list_exceptions {
     return @exceptions, keys %custom_name_to_value;
 }
 
-=head2 is_dancer_internal_exception
+=head2 is_dancer_exception
 
   # test if it's a Dancer exception
   my $value = is_dancer_exception($@);
@@ -122,14 +146,14 @@ sub list_exceptions {
   my $value = is_dancer_exception($@, type => 'custom');
 
 This function tests if an exception is a Dancer exception, and if yes get its
-value. If not, it returns void
+value. If not, it returns 0;
 
 First parameter is the exception to test. Other parameters are an optional list
 of key values. Accepted keys are for now only C<type>, to restrict the test on
 the type of the Dancer exception. C<type> can be 'internal' or 'custom'.
 
-Returns the exception value (which is always true), or void (empty list) if the
-exception was not a dancer exception (of the right type if specified).
+Returns the exception value (which is always true), or zero if the exception
+was not a dancer exception (of the right type if specified).
 
 =cut
 
@@ -137,7 +161,7 @@ sub is_dancer_exception {
     my ($exception, %params) = @_;
     ref $exception eq __PACKAGE__
       or return 0;
-    my $value = $$exception;
+    my $value = $exception->value;
     @_ > 1
       or return $value;
     $params{type} eq 'internal' && $value < 2**16
@@ -152,7 +176,6 @@ sub is_dancer_exception {
   register_custom_exception('E_FROBNICATOR');
   # now I can use this exception for raising
   raise E_FROBNICATOR;
-
 
 =cut
 
@@ -179,6 +202,47 @@ sub register_custom_exception {
     return;
 }
 
+=head1 METHODS
+
+The following methods can be called on an exception
+
+=head2 value
+
+Return or set the value of the exception. Warning, no check is done. Use
+C<is_dancer_exception> before using this method if you are unsure.
+
+With no argument, the exception value is returned.
+
+If an argument is given, the exception value is set to this new value. It
+should be a valid exception value (use C<list_exceptions> to get a list of
+them). The new value is returned.
+
+=cut
+
+sub value {
+    @_ > 1 and $_[0]->[0] = $_[1];
+    return $_[0]->[0];
+}
+
+=head2 message
+
+Return or set the message of the exception. Warning, no check is done. Use
+C<is_dancer_exception> before using this method if you are unsure.
+
+With no argument, the exception message is returned. If the exception has no
+message defined, returns C<void> (empty list). That is different from the case
+where the exception has an undefined message. In this case, C<undef> is
+returned.
+
+If an argument is given, the exception message is set to this new message. The
+new message is returned.
+
+=cut
+
+sub message {
+    @_ > 1 and $_[0]->[1] = $_[1];
+    return $_[0]->[1];
+}
 
 =head1 INTERNAL EXCEPTIONS
 
@@ -189,7 +253,16 @@ be used by user code safely, without having to register a custom user exception.
 
 =cut
 
-sub E_GENERIC () { 1 }
+sub E_GENERIC () { 2**0 }
+
+=head2 E_INTERNAL
+
+General internal exception, generated something bad happen, but can't be
+related to anything specific.
+
+=cut
+
+sub E_INTERNAL () { 2**1 }
 
 =head2 E_HALTED
 
@@ -197,7 +270,24 @@ Internal exception, generated when C<halt()> is called (see in L<Dancer> POD).
 
 =cut
 
-sub E_HALTED () { 2 }
+sub E_HALTED () { 2**2 }
+
+=head2 E_HOOK
+
+Internal exception, related to a Dancer hook. If an exception is raised in a
+hook, the exception will also be a E_HOOK exception.
+
+=cut
+
+sub E_HOOK () { 2**3 }
+
+=head2 E_REQUEST
+
+Internal exception, related to a Dancer request.
+
+=cut
+
+sub E_REQUEST () { 2**4 }
 
 =head1 CUSTOM EXCEPTIONS
 

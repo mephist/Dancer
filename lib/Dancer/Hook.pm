@@ -10,7 +10,7 @@ __PACKAGE__->attributes(qw/name code properties/);
 
 use Dancer::Factory::Hook;
 use Dancer::Hook::Properties;
-use Dancer::Exception qw(:all);
+use Dancer::Exception qw(is_dancer_exception :exceptions);
 
 sub new {
     my ($class, @args) = @_;
@@ -57,7 +57,8 @@ sub new {
         Dancer::Logger::core( "entering " . $hook_name . " hook" );
         eval { $code->(@_) };
         if ( is_dancer_exception(my $exception = $@) ) {
-            # propagate the exception
+            # add the E_HOOK flag, then propagate the exception
+            $exception->value($exception->value | E_HOOK);
             die $exception;
         } elsif ($exception) {
             # exception is not a workflow halt but a genuine error

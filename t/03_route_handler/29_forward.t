@@ -9,7 +9,7 @@ use Dancer::Test;
 plan skip_all => "File::Temp 0.22 required"
     unless Dancer::ModuleLoader->load( 'File::Temp', '0.22' );
 
-plan tests => 16;
+plan tests => 17;
 
 my $dir = File::Temp::tempdir(CLEANUP => 1, TMPDIR => 1);
 set appdir => $dir;
@@ -33,6 +33,9 @@ post '/simple_post_route/' => sub {
 get '/go_to_post/' => sub {
     return forward '/simple_post_route/', { foo => 'bar' }, { method => 'post' };
 };
+get '/go_to_invalid_method/' => sub {
+    return forward '/simple_post_route/', { foo => 'bar' }, { method => 'invalid_method' };
+};
 
 response_status_is  [ GET => '/' ] => 200;
 response_content_is [ GET => '/' ] => 'home:';
@@ -48,6 +51,8 @@ response_content_is [ GET => '/bounce2/adding_params/' ] => 'home:withparams,foo
 
 response_status_is  [ GET => '/go_to_post/' ] => 200;
 response_content_is [ GET => '/go_to_post/' ] => 'post:foo,bar';
+
+response_status_is  [ GET => '/go_to_invalid_method/' ] => 500;
 
 my $expected_headers = [
     'Content-Length' => 5,
